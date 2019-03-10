@@ -23,13 +23,13 @@ POS_EPS = .1
 THETA_EPS = .3
 
 # time to stop at a stop sign
-STOP_TIME = 3
+STOP_TIME = 6
 
 # minimum distance from a stop sign to obey it
 STOP_MIN_DIST = .35
 
 # time taken to cross an intersection
-CROSSING_TIME = 3
+CROSSING_TIME = 10
 
 # state machine modes, not all implemented
 class Mode(Enum):
@@ -93,13 +93,11 @@ class Supervisor:
         euler = tf.transformations.euler_from_quaternion(quaternion)
         self.theta = euler[2]
         
-        last_r, last_phi = self.stop_sign_line
-        dist_to_stop_sign = abs((last_r * np.cos(last_phi) - self.x) * np.cos(last_phi) + (last_r * np.sin(last_phi) - self.y) * np.sin(last_phi))
-        if dist_to_stop_sign > 0 and dist_to_stop_sign < STOP_MIN_DIST and self.mode == Mode.NAV:
-        # if dist > 0 and dist < STOP_MIN_DIST and self.mode == Mode.NAV:
-            self.init_stop_sign()
-
-
+        # last_r, last_phi = self.stop_sign_line
+        # dist_to_stop_sign = abs((last_r * np.cos(last_phi) - self.x) * np.cos(last_phi) + (last_r * np.sin(last_phi) - self.y) * np.sin(last_phi))
+        # if dist_to_stop_sign > 0 and dist_to_stop_sign < STOP_MIN_DIST and self.mode == Mode.NAV:
+        # # if dist > 0 and dist < STOP_MIN_DIST and self.mode == Mode.NAV:
+        #     self.init_stop_sign()
 
 
     def rviz_goal_callback(self, msg):
@@ -140,6 +138,7 @@ class Supervisor:
         # d_r = sqrt(self.x**2 + self.y**2)
         # alpha = np.arccos((new_r**2 + d_r**2 - dist**2) / (2 * new_r * d_r))
         new_phi = self.theta 
+        print("we update the line")
         self.stop_sign_line = [new_r, new_phi]
         dist_to_stop_sign = dist
         # if close enough and in nav mode, stop
@@ -235,6 +234,7 @@ class Supervisor:
 
         elif self.mode == Mode.STOP:
             # at a stop sign
+            self.stay_idle()
             if self.has_stopped():
                 self.init_crossing()
             else:
@@ -251,11 +251,19 @@ class Supervisor:
             self.detect_sub = self.detect_sub.unregister()
             if self.has_crossed():
                 self.detect_sub = rospy.Subscriber('/detector/stop_sign', DetectedObject, self.stop_sign_detected_callback)
+                # self.mode = Mode.NAV    
                 self.mode = Mode.POSE    
             else:
+                # self.nav_to_pose()
                 self.mode = Mode.NAV
 
         elif self.mode == Mode.NAV:
+            last_r, last_phi = self.stop_sign_line
+            dist_to_stop_sign = abs((last_r * np.cos(last_phi) - self.x) * np.cos(last_phi) + (last_r * np.sin(last_phi) - self.y) * np.sin(last_phi))
+            if dist_to_stop_sign > 0 and dist_to_stop_sign < STOP_MIN_DIST and self.mode == Mode.NAV:
+            # if dist > 0 and dist < STOP_MIN_DIST and self.mode == Mode.NAV:
+                print("we stop without seeing the stop sign")
+                self.init_stop_sign()
             if self.close_to(self.x_g,self.y_g,self.theta_g):
                 self.mode = Mode.IDLE
             else:
