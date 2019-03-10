@@ -155,32 +155,45 @@ class Detector:
 
         return (x,y,z)
 
-    def estimate_distance(self, thetaleft, thetaright, ranges):
+    def estimate_distance(self, thetaleft, thetaright, ranges, image_shape, box, cl):
         """ estimates the distance of an object in between two angles
         using lidar measurements """
+        if self.object_labels[cl] == "stop_sign":
+            (img_h, img_w, img_c) = image_shape
+            y_min = int(box[0]*img_h)
+            x_min = int(box[1]*img_w)
+            y_max = int(box[2]*img_h)
+            x_max = int(box[3]*img_w)
 
-        offset = int(np.pi/self.laser_angle_increment)
-        # add offset and wrap to number of points. laserscan should always have the same number of points. (2*offset = len(ranges))
-        # See https://github.com/StanfordASL/velodyne/blob/master/velodyne_laserscan/src/VelodyneLaserScan.cpp#L110
-        leftray_indx = (offset + min(max(0, int(thetaleft/self.laser_angle_increment)), offset * 2)) % (offset * 2)
-        rightray_indx = (offset + min(max(0, int(thetaright/self.laser_angle_increment)), offset * 2)) % (offset * 2)
+            f_over_s = 1.0 ####
+            real_height = 0.064 
+            pixel_image_height = 308
+            pixel_object_height = y_max - y_min
 
-        if leftray_indx<rightray_indx:
-            meas = ranges[rightray_indx:] + ranges[:leftray_indx]
-        else:
-            meas = ranges[rightray_indx:leftray_indx]
+            dist = f_over_s * real_height * pixel_image_height / pixel_object_height
+            return dist
+        else: 
+            offset = int(np.pi/self.laser_angle_increment)
+            # add offset and wrap to number of points. laserscan should always have the same number of points. (2*offset = len(ranges))
+            # See https://github.com/StanfordASL/velodyne/blob/master/velodyne_laserscan/src/VelodyneLaserScan.cpp#L110
+            leftray_indx = (offset + min(max(0, int(thetaleft/self.laser_angle_increment)), offset * 2)) % (offset * 2)
+            rightray_indx = (offset + min(max(0, int(thetaright/self.laser_angle_increment)), offset * 2)) % (offset * 2)
 
-        num_m = 0
-        dists = []
-        for m in meas:
-            if m>0 and m<float('Inf'):
-                dists.append(m)
-                num_m += 1
+            if leftray_indx<rightray_indx:
+                meas = ranges[rightray_indx:] + ranges[:leftray_indx]
+            else:
+                meas = ranges[rightray_indx:leftray_indx]
 
-        dists = np.sort(np.array(dists))
-        m = min(10, num_m)
-        return np.mean(dists[:m])
+            num_m = 0
+            dists = []
+            for m in meas:
+                if m>0 and m<float('Inf'):
+                    dists.append(m)
+                    num_m += 1
 
+            dists = np.sort(np.array(dists))
+            m = min(10, num_m)
+            return np.mean(dists[:m])
 
     def camera_callback(self, msg):
         """ callback for camera images """
@@ -244,7 +257,7 @@ class Detector:
                     thetaright += 2.*math.pi
 
                 # estimate the corresponding distance using the lidar
-                dist = self.estimate_distance(thetaleft,thetaright,img_laser_ranges)
+                dist = self.estimate_distance(thetaleft,thetaright,img_laser_ranges, img.shape, box, cl)
 
                 if not self.object_publishers.has_key(cl):
                     self.object_publishers[cl] = rospy.Publisher('/detector/'+self.object_labels[cl],
