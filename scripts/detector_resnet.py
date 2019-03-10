@@ -13,7 +13,7 @@ import cv2
 import math
 
 # path to the trained conv net
-PATH_TO_MODEL = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../tfmodels/ssd_mobilenet_v1_coco.pb')
+PATH_TO_MODEL = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../tfmodels/ssd_resnet_50_fpn_coco.pb')
 PATH_TO_LABELS = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../tfmodels/coco_labels.txt')
 
 # set to True to use tensorflow and a conv net
@@ -155,52 +155,21 @@ class Detector:
 
         return (x,y,z)
 
-    def estimate_distance(self, thetaleft, thetaright, ranges, image_shape, box, cl):
+    def estimate_distance(self, thetaleft, thetaright, ranges):
         """ estimates the distance of an object in between two angles
         using lidar measurements """
 
-<<<<<<< HEAD:scripts/detector_mobilenet_stop_sign.py
-        if self.object_labels[cl] == "stop_sign":
-            (img_h, img_w, img_c) = image_shape
-            y_min = int(box[0]*img_h)
-            x_min = int(box[1]*img_w)
-            y_max = int(box[2]*img_h)
-            x_max = int(box[3]*img_w)
-
-            f_over_s = 1.0 ####
-            real_height = 0.064 
-            pixel_image_height = 308
-            pixel_object_height = y_max - y_min
-
-            dist = f_over_s * real_height * pixel_image_height / pixel_object_height
-            return dist
-=======
         offset = int(np.pi/self.laser_angle_increment)
         # add offset and wrap to number of points. laserscan should always have the same number of points. (2*offset = len(ranges))
         # See https://github.com/StanfordASL/velodyne/blob/master/velodyne_laserscan/src/VelodyneLaserScan.cpp#L110
         leftray_indx = (offset + min(max(0, int(thetaleft/self.laser_angle_increment)), offset * 2)) % (offset * 2)
         rightray_indx = (offset + min(max(0, int(thetaright/self.laser_angle_increment)), offset * 2)) % (offset * 2)
->>>>>>> c76bd07cec609a4de968069a994e387be537244f:scripts/detector_mobilenet.py
 
+        if leftray_indx<rightray_indx:
+            meas = ranges[rightray_indx:] + ranges[:leftray_indx]
         else:
-            leftray_indx = min(max(0,int(thetaleft/self.laser_angle_increment)),len(ranges))
-            rightray_indx = min(max(0,int(thetaright/self.laser_angle_increment)),len(ranges))
+            meas = ranges[rightray_indx:leftray_indx]
 
-<<<<<<< HEAD:scripts/detector_mobilenet_stop_sign.py
-            if leftray_indx<rightray_indx:
-                meas = ranges[rightray_indx:] + ranges[:leftray_indx]
-            else:
-                meas = ranges[rightray_indx:leftray_indx]
-
-            num_m, dist = 0, 0
-            for m in meas:
-                if m>0 and m<float('Inf'):
-                    dist += m
-                    num_m += 1
-            if num_m>0:
-                dist /= num_m
-            return dist
-=======
         num_m = 0
         dists = []
         for m in meas:
@@ -212,7 +181,6 @@ class Detector:
         m = min(10, num_m)
         return np.mean(dists[:m])
 
->>>>>>> c76bd07cec609a4de968069a994e387be537244f:scripts/detector_mobilenet.py
 
     def camera_callback(self, msg):
         """ callback for camera images """
@@ -276,7 +244,7 @@ class Detector:
                     thetaright += 2.*math.pi
 
                 # estimate the corresponding distance using the lidar
-                dist = self.estimate_distance(thetaleft,thetaright,img_laser_ranges, img.shape, box, cl)
+                dist = self.estimate_distance(thetaleft,thetaright,img_laser_ranges)
 
                 if not self.object_publishers.has_key(cl):
                     self.object_publishers[cl] = rospy.Publisher('/detector/'+self.object_labels[cl],
