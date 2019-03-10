@@ -155,27 +155,42 @@ class Detector:
 
         return (x,y,z)
 
-    def estimate_distance(self, thetaleft, thetaright, ranges):
+    def estimate_distance(self, thetaleft, thetaright, ranges, image_shape, box, cl):
         """ estimates the distance of an object in between two angles
         using lidar measurements """
 
-        leftray_indx = min(max(0,int(thetaleft/self.laser_angle_increment)),len(ranges))
-        rightray_indx = min(max(0,int(thetaright/self.laser_angle_increment)),len(ranges))
+        if self.object_labels[cl] == "stop_sign":
+            (img_h, img_w, img_c) = image_shape
+            y_min = int(box[0]*img_h)
+            x_min = int(box[1]*img_w)
+            y_max = int(box[2]*img_h)
+            x_max = int(box[3]*img_w)
 
-        if leftray_indx<rightray_indx:
-            meas = ranges[rightray_indx:] + ranges[:leftray_indx]
+            f_over_s = 1.0 ####
+            real_height = 0.064 
+            pixel_image_height = 308
+            pixel_object_height = y_max - y_min
+
+            dist = f_over_s * real_height * pixel_image_height / pixel_object_height
+            return dist
+
         else:
-            meas = ranges[rightray_indx:leftray_indx]
+            leftray_indx = min(max(0,int(thetaleft/self.laser_angle_increment)),len(ranges))
+            rightray_indx = min(max(0,int(thetaright/self.laser_angle_increment)),len(ranges))
 
-        num_m, dist = 0, 0
-        for m in meas:
-            if m>0 and m<float('Inf'):
-                dist += m
-                num_m += 1
-        if num_m>0:
-            dist /= num_m
+            if leftray_indx<rightray_indx:
+                meas = ranges[rightray_indx:] + ranges[:leftray_indx]
+            else:
+                meas = ranges[rightray_indx:leftray_indx]
 
-        return dist
+            num_m, dist = 0, 0
+            for m in meas:
+                if m>0 and m<float('Inf'):
+                    dist += m
+                    num_m += 1
+            if num_m>0:
+                dist /= num_m
+            return dist
 
     def camera_callback(self, msg):
         """ callback for camera images """
@@ -239,7 +254,7 @@ class Detector:
                     thetaright += 2.*math.pi
 
                 # estimate the corresponding distance using the lidar
-                dist = self.estimate_distance(thetaleft,thetaright,img_laser_ranges)
+                dist = self.estimate_distance(thetaleft,thetaright,img_laser_ranges, img.shape, box, cl)
 
                 if not self.object_publishers.has_key(cl):
                     self.object_publishers[cl] = rospy.Publisher('/detector/'+self.object_labels[cl],

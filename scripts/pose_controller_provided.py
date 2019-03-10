@@ -16,7 +16,7 @@ K3 = 0.8
 
 # tells the robot to stay still
 # if it doesn't get messages within that time period
-TIMEOUT = 1.0
+TIMEOUT = np.inf
 
 # maximum velocity
 V_MAX = 0.2
@@ -48,11 +48,9 @@ class PoseController:
         self.theta = 0.0
 
         # goal state
-        self.x_g = 0.0
-        self.y_g = 0.0
-        self.theta_g = 0.0
-
-        
+        self.x_g = None
+        self.y_g = None
+        self.theta_g = None        
 
         # time last pose command was received
         self.cmd_pose_time = rospy.get_rostime()
@@ -70,8 +68,6 @@ class PoseController:
         rospy.Subscriber('/cmd_pose', Pose2D, self.cmd_pose_callback)
 
         ######### END OF YOUR CODE ##########
-
-
 
     def gazebo_callback(self, data):
         if "turtlebot3_burger" in data.name:
@@ -98,6 +94,9 @@ class PoseController:
 
 
     def get_ctrl_output(self):
+        if self.x_g is None:
+            return None
+
         """ runs a simple feedback pose controller """
         if (rospy.get_rostime().to_sec()-self.cmd_pose_time.to_sec()) < TIMEOUT:
             # if you are not using gazebo, your need to use a TF look-up to find robot's states
@@ -118,39 +117,32 @@ class PoseController:
             # robot's desired state is self.x_g, self.y_g, self.theta_g
             # fill out cmd_x_dot = ... cmd_theta_dot = ...
 
+            rel_coords = np.array([self.x-self.x_g, self.y-self.y_g])
+            R = np.array([[np.cos(self.theta_g), np.sin(self.theta_g)], [-np.sin(self.theta_g), np.cos(self.theta_g)]])
+            rel_coords_rot = np.dot(R,rel_coords)
 
-            x, y, th = self.x, self.y, self.theta
-            xg = self.x_g
-            yg = self.y_g
-            thg = self.theta_g
+            th_rot = self.theta-self.theta_g 
+            rho = linalg.norm(rel_coords) 
 
-            V_max = 0.5
-            om_max = 1.0
+            if (rho < 0.03) & (th_rot < 0.08):
+                rospy.loginfo("Close to goal: commanding zero controls")
+                self.x_g = None
+                self.y_g = None
+                self.theta_g = None
+                cmd_x_dot = 0
+                cmd_theta_dot = 0
+            else:
+                ang = np.arctan2(rel_coords_rot[1],rel_coords_rot[0])+np.pi 
+                angs = wrapToPi(np.array([ang-th_rot, ang])) 
+                alpha = angs[0] 
+                delta = angs[1] 
 
-            rho = np.sqrt((x - xg)**2 + (y - yg)**2)
-            phi = np.arctan2(yg - y, xg - x)
-            alpha = wrapToPi(phi - th)
-            delta = wrapToPi(phi - thg)
+                V = K1*rho*np.cos(alpha) 
+                om = K2*alpha + K1*np.sinc(2*alpha/np.pi)*(alpha+K3*delta) 
 
-            k1 = 1.0
-            k2 = 2.0
-            k3 = 1.0
-
-            V = k1 * rho * np.cos(alpha)
-            om = k2 * alpha + k1 * np.sinc(alpha) * np.cos(alpha) * (alpha + k3 * delta) 
-
-            if V > V_max:
-                V = min(V_max, V)
-            elif V < -V_max:
-                V = max(-V_max, V)
-
-            if om > om_max:
-                om = min(om_max, om)
-            elif om < -om_max:
-                om = max(-om_max, om)
-
-            cmd_x_dot = V
-            cmd_theta_dot = om
+                # Apply saturation limits
+                cmd_x_dot = np.sign(V)*min(V_MAX, np.abs(V))
+                cmd_theta_dot = np.sign(om)*min(W_MAX, np.abs(om))
 
 
             ######### END OF YOUR CODE ##########
@@ -171,10 +163,11 @@ class PoseController:
         rate = rospy.Rate(10) # 10 Hz
         while not rospy.is_shutdown():
             ctrl_output = self.get_ctrl_output()
-            self.pub.publish(ctrl_output)
+            if ctrl_output is not None:
+                self.pub.publish(ctrl_output)
             rate.sleep()
 
 if __name__ == '__main__':
 
     pctrl = PoseController()
-    pctrl.run()
+pctrl.run()
