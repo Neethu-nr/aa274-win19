@@ -5,6 +5,8 @@
   <node pkg="asl_turtlebot" type="navigator.py" name="turtlebot_navigator" />
   <node pkg="asl_turtlebot" type="pose_controller.py" name="turtlebot_pose_controller" />
   <node pkg="asl_turtlebot" type="cmd_nav_commander.py" name="cmd_nav_commander" />
-
+  <!-- <node pkg="asl_turtlebot" type="supervisor_nav.py" name="supervisor_nav" /> -->
+  <node pkg="asl_turtlebot" type="bot_viz.py" name="turtlebot_viz" />
+  
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find asl_turtlebot)/rviz/project_sim.rviz"/>
 </launch>
