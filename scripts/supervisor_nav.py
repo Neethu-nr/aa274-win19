@@ -20,7 +20,7 @@ mapping = rospy.get_param("map")
 
 # threshold at which we consider the robot at a location
 POS_EPS = .1
-THETA_EPS = .3
+THETA_EPS = .1
 
 # time to stop at a stop sign
 STOP_TIME = 6
@@ -66,7 +66,7 @@ class Supervisor:
         self.pose_goal_publisher = rospy.Publisher('/cmd_pose', Pose2D, queue_size=10)
         # nav pose for controller
         self.nav_goal_publisher = rospy.Publisher('/cmd_nav', Pose2D, queue_size=10)
-        # command vel (used for idling)
+        # command vel 
         self.cmd_vel_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 
         # subscribers
@@ -79,6 +79,15 @@ class Supervisor:
             rospy.Subscriber('/gazebo/model_states', ModelStates, self.gazebo_callback)
         # we can subscribe to nav goal click
         rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.rviz_goal_callback)
+        rospy.Subscriber('/cmd_vel_pose_controller', Twist, self.cmd_vel_callback)
+        rospy.Subscriber('/cmd_vel_navigator', Twist, self.cmd_vel_callback)
+    
+    
+    def cmd_vel_callback(self, msg):
+        if self.mode == Mode.IDLE :
+            msg = Twist()
+        self.cmd_vel_publisher.publish(msg)
+
         
     def gazebo_callback(self, msg):
         pose = msg.pose[msg.name.index("turtlebot3_burger")]

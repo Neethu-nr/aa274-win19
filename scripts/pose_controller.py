@@ -40,7 +40,7 @@ class PoseController:
 
     def __init__(self):
         rospy.init_node('turtlebot_pose_controller', anonymous=True)
-        self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        self.pub = rospy.Publisher('/cmd_vel_pose_controller', Twist, queue_size=10)
 
         # current state
         self.x = 0.0
@@ -125,7 +125,9 @@ class PoseController:
             thg = self.theta_g
 
             V_max = 0.5
+            V_min = -0.5
             om_max = 1.0
+            om_min = -1.0
 
             rho = np.sqrt((x - xg)**2 + (y - yg)**2)
             phi = np.arctan2(yg - y, xg - x)
@@ -135,22 +137,46 @@ class PoseController:
             k1 = 1.0
             k2 = 2.0
             k3 = 1.0
+            
+            delta_t = 0.01
+            kp_delta = 1
+            ki_delta = 0.1
 
-            V = k1 * rho * np.cos(alpha)
-            om = k2 * alpha + k1 * np.sinc(alpha) * np.cos(alpha) * (alpha + k3 * delta) 
 
-            if V > V_max:
-                V = min(V_max, V)
-            elif V < -V_max:
-                V = max(-V_max, V)
+            delta_dist = 0.1
+            integral_error = 0
 
-            if om > om_max:
-                om = min(om_max, om)
-            elif om < -om_max:
-                om = max(-om_max, om)
+            if rho > delta_dist :
+                print "pose controller stage 1"
+                V = k1 * rho * np.cos(alpha)
+                om = k2 * alpha + k1 * np.sinc(alpha) * np.cos(alpha) * (alpha + k3 * delta) 
+
+                
+            else:
+                V = 0
+                print "pose controller stage 2"
+                error = thg-th
+                integral_error = integral_error + error*(delta_t)
+                om = kp_delta*error+ ki_delta*integral_error
+
+                if  abs(error) < 0.1:
+                    om = 0 
+
+
+            #if above calculated V and om are outside the bounds then set V and om to bounds
+            if V>V_max:
+                V = V_max
+            elif V<V_min:
+                V = V_min
+            if om>om_max:
+                om = om_max
+            elif om<om_min:
+                om = om_min
 
             cmd_x_dot = V
             cmd_theta_dot = om
+
+
 
 
             ######### END OF YOUR CODE ##########
