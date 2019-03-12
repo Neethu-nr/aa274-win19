@@ -1,0 +1,14 @@
+52: banana
+53: apple
+54: sandwich
+55: orange
+56: broccoli
+57: carrot
+58: hot dog
+59: pizza
+60: donut
+61: cake
+121: food-other
+122: fruit
+153: salad
+170: vegetable
