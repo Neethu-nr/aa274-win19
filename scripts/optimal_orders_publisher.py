@@ -4,6 +4,7 @@ import rospy
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose, PoseArray
 from visualization_msgs.msg import Marker
+import tf
 import numpy as np
 from itertools import permutations
 
@@ -18,6 +19,7 @@ class OptimalOrdersPublisher:
         self.robot_pose = None
         self.orders_sub = rospy.Subscriber('/orders', PoseArray, self.get_orders_callback)
         self.odom_sub = rospy.Subscriber('/odom', Pose2D, self.get_pose_callback)
+        self.optimal_orders_pub = rospy.Publisher('/orders/optimal', PoseArray)
 
     def get_orders_callback(self, orders_msg):
         """
@@ -54,6 +56,11 @@ class OptimalOrdersPublisher:
         distance += self.distances[path[-1], n-1]
         return distance
 
+    def get_angle(self, pose1, pose2):
+        x1, y1 = pose1
+        x2, y2 = pose2
+        return np.arctan2(y2 - y1, x2 - x1)
+
     def loop(self):
         if self.ordered_list:
             self.ordered_list_msg = PoseArray()
@@ -65,6 +72,14 @@ class OptimalOrdersPublisher:
                 order_pose_msg.position.y = pose[1]
                 poses.append(order_pose_msg)
             self.ordered_list_msg.poses = poses
+            
+            for i in range(len(self.ordered_list_msg.poses) - 1):
+                pose1 = self.ordered_list_msg.poses[i]
+                pose2 = self.ordered_list_msg.poses[i + 1]
+                # hack: actually treated as an angle
+                self.ordered_list_msg.poses[i+1].position.z = self.get_angle(pose1, pose2)
+
+            self.optimal_orders_pub.publish(self.ordered_list_msg)
 
     def run(self):
         rate = rospy.Rate(50) # 50 Hz
