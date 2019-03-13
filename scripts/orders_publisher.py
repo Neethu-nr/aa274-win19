@@ -4,6 +4,7 @@ import rospy
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose, PoseArray
 from visualization_msgs.msg import Marker
+import os
 
 
 PATH_TO_FOOD_LABELS = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../tfmodels/coco_food_labels.txt')
@@ -53,21 +54,25 @@ class OrdersPublisher:
         Parses the request.
         e.g. 'banana,apple' -> ['banana', 'apple']
         """
-        self.request_list = request_msg.split(",")
+        self.request_list = request_msg.data.split(",")
 
     def get_detected_food_callback(self, food_marker_msg):
-        if food_marker_msg.ns in self.request_list:
-            self.orders_points[food_marker_msg.ns] = Pose()
-            self.orders_points[food_marker_msg.ns].position.x = food_marker_msg.pose.position.x
-            self.orders_points[food_marker_msg.ns].position.y = food_marker_msg.pose.position.y
-            self.orders_points[food_marker_msg.ns].position.z = food_marker_msg.pose.position.z
+
+        if self.request_list:
+            if food_marker_msg.ns[len("mid_"):] in self.request_list:
+                self.orders_points[food_marker_msg.ns] = Pose()
+                self.orders_points[food_marker_msg.ns].position.x = food_marker_msg.pose.position.x
+                self.orders_points[food_marker_msg.ns].position.y = food_marker_msg.pose.position.y
+                self.orders_points[food_marker_msg.ns].position.z = food_marker_msg.pose.position.z
     
     def loop(self):
         if self.request_list:
             if len(self.orders_points) != 0:
                 # Each orders_points value is a Pose msg.
-                # orders_points.values is a list of Pose msgs.
-                self.orders.poses = self.orders_points.values()
+                list_order_points = []
+                for k, v in self.orders_points.items():
+                    list_order_points.append(v)
+                self.orders.poses = list_order_points 
                 self.orders_pub.publish(self.orders)
 
     def run(self):

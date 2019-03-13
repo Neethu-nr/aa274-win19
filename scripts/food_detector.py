@@ -179,7 +179,7 @@ class FoodViz:
         try:    
             for k in self.dist:
                 print("object =", k)
-                print("th =", self.th[k])
+                # print("th =", self.th[k])
 
                 # Assign the pose of food_marker in the world frame.
                 self.food_marker[k].pose.position.x = self.bot_x[k] + self.dist[k] * np.cos(self.th[k] + self.bot_beta[k])
