@@ -68,7 +68,7 @@ class OrdersPublisher:
                 # Each orders_points value is a Pose msg.
                 # orders_points.values is a list of Pose msgs.
                 self.orders.poses = self.orders_points.values()
-                self.orders_pub.publish(orders)
+                self.orders_pub.publish(self.orders)
 
     def run(self):
         rate = rospy.Rate(50) # 50 Hz
