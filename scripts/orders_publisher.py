@@ -46,7 +46,7 @@ class OrdersPublisher:
         self.orders.header.frame_id = '/odom'
 
         for v in self.object_labels.values():
-            self.detected_food_sub[v] = rospy.Subscriber('/viz/' + v, Marker, self.get_detected_food_callback)
+            self.detected_food_sub[v] = rospy.Subscriber('/viz/mid/' + v, Marker, self.get_detected_food_callback)
 
     def get_request_callback(self, request_msg):
         """
