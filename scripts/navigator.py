@@ -15,16 +15,18 @@ import scipy.interpolate
 import matplotlib.pyplot as plt
 
 
+PLAN_RESOLUTION = 0.05
+
 # threshold at which navigator switches
 # from trajectory to pose control
-END_POS_THRESH = .2
+END_POS_THRESH = 3*PLAN_RESOLUTION
 
 # threshold to be far enough into the plan
 # to recompute it
-START_POS_THRESH = .2
+START_POS_THRESH = 3*PLAN_RESOLUTION
 
 # thereshold in theta to start moving forward when path following
-THETA_START_THRESH = 0.09
+THETA_START_THRESH = 0.04
 # P gain on orientation before start
 THETA_START_P = 1
 
@@ -73,7 +75,7 @@ class Navigator:
         self.occupancy_updated = False
 
         # plan parameters
-        self.plan_resolution =  0.1
+        self.plan_resolution =  PLAN_RESOLUTION
         self.plan_horizon = 15
 
         # variables for the controller
@@ -83,7 +85,7 @@ class Navigator:
         self.nav_path_pub = rospy.Publisher('/cmd_path', Path, queue_size=10)
         self.nav_pose_pub = rospy.Publisher('/cmd_pose', Pose2D, queue_size=10)
         self.nav_pathsp_pub = rospy.Publisher('/cmd_path_sp', PoseStamped, queue_size=10)
-        self.nav_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        self.nav_vel_pub = rospy.Publisher('/cmd_vel_navigator', Twist, queue_size=10)
 
         self.trans_listener = tf.TransformListener()
 
@@ -94,7 +96,7 @@ class Navigator:
     def cmd_nav_callback(self, data):
         self.x_g = data.x
         self.y_g = data.y
-        self.theta_g = data.theta
+        self.theta_g = data.theta        
         self.run_navigator()
 
     def map_md_callback(self, msg):
@@ -113,8 +115,8 @@ class Navigator:
                                                   self.map_origin[1],
                                                   8,
                                                   self.map_probs)
-            self.occupancy_updated = True
-
+            self.occupancy.cost_calc()
+            
     def close_to_end_location(self):
         return (abs(self.x-self.x_g)<END_POS_THRESH and abs(self.y-self.y_g)<END_POS_THRESH)
 
@@ -159,6 +161,19 @@ class Navigator:
             self.V_prev = 0
             return
 
+
+        # if close to the start, use the pose_controller instead
+        #if self.close_to_start_location():
+        #    rospy.loginfo("Navigator: Close to nav start using pose controller")
+        #    pose_g_msg = Pose2D()
+        #    pose_g_msg.x = self.x_g
+        #    pose_g_msg.y = self.y_g
+        #    pose_g_msg.theta = self.theta_g
+        #    self.nav_pose_pub.publish(pose_g_msg)
+        #    self.current_plan = []
+        #    self.V_prev = 0
+        #    return
+
         # if there is no plan, we are far from the start of the plan,
         # or the occupancy grid has been updated, update the current plan
         if len(self.current_plan)==0 or not(self.close_to_start_location()) or self.occupancy_updated:
@@ -169,6 +184,8 @@ class Navigator:
             x_init = self.snap_to_grid((self.x, self.y))
             x_goal = self.snap_to_grid((self.x_g, self.y_g))
             problem = AStar(state_min,state_max,x_init,x_goal,self.occupancy,self.plan_resolution)
+
+
 
             rospy.loginfo("Navigator: Computing navigation plan")
             if problem.solve():
@@ -206,6 +223,8 @@ class Navigator:
                     self.path_y_spline = scipy.interpolate.splrep(path_t, path_y, k=3, s=SMOOTH)
                     self.path_tf = path_t[-1]
 
+                    rospy.loginfo("Navigator: Navigation plan computed")
+
                     # to inspect the interpolation and smoothing
                     # t_test = np.linspace(path_t[0],path_t[-1],1000)
                     # plt.plot(path_t,path_x,'ro')
@@ -222,8 +241,10 @@ class Navigator:
         # if we have a path, execute it (we need at least 3 points for this controller)
         if len(self.current_plan) > 3:
 
+            rospy.loginfo("Navigator: Executing planned A_star path with differential flatness based PID controller")
             # if currently not moving, first line up with the plan
             if self.V_prev == 0:
+                rospy.loginfo("Navigator: Aligning with path")
                 theta_init = np.arctan2(self.current_plan[1][1]-self.current_plan[0][1],self.current_plan[1][0]-self.current_plan[0][0])
                 theta_err = theta_init-self.theta
                 if abs(theta_err)>THETA_START_THRESH:
@@ -279,6 +300,7 @@ class Navigator:
         elif len(self.current_plan) > 0:
             # using the pose controller for paths too short
             # just send the next point
+            rospy.loginfo("Navigator: Path too short; using pose controller")
             pose_g_msg = Pose2D()
             pose_g_msg.x = self.current_plan[0][0]
             pose_g_msg.y = self.current_plan[0][1]
@@ -290,6 +312,7 @@ class Navigator:
             return
         else:
             # just stop
+            rospy.loginfo("Navigator: No path; commanding zero velocity")
             cmd_x_dot = 0
             cmd_theta_dot = 0
 
@@ -301,7 +324,6 @@ class Navigator:
         cmd_msg.linear.x = cmd_x_dot
         cmd_msg.angular.z = cmd_theta_dot
         self.nav_vel_pub.publish(cmd_msg)
-
 
 if __name__ == '__main__':
     nav = Navigator()
