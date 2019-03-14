@@ -138,9 +138,9 @@ class PoseController:
             k2 = 2.0
             k3 = 1.0
             
-            delta_t = 0.01
-            kp_delta = 1
-            ki_delta = 0.1
+            delta_t = 0.005
+            kp_delta = 0.5
+            ki_delta = 0.05
 
 
             delta_dist = 0.1
